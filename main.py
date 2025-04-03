@@ -29,12 +29,13 @@ def get_transcript():
             "language_available": True
         })
 
-    except (TranscriptsDisabled, NoTranscriptFound):
-        return jsonify({
-            "video_id": video_id,
-            "transcript_segments": [],
-            "full_transcript_text": "",
-            "language_available": False
-        })
+   except (TranscriptsDisabled, NoTranscriptFound, VideoUnplayable) as e:
+    return jsonify({
+        "video_id": video_id,
+        "error": str(e),
+        "transcript_segments": [],
+        "full_transcript_text": "",
+        "language_available": False
+    }), 400
 
 app.run(host="0.0.0.0", port=8000)

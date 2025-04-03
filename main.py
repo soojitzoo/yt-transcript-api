@@ -20,29 +20,33 @@ def get_transcript():
     url_or_id = data.get("video_url", "")
     video_id = get_video_id(url_or_id)
 
-    # Smartproxy credentials from env
-    sp_user = os.getenv("SMARTPROXY_USERNAME")
-    sp_pass = os.getenv("SMARTPROXY_PASSWORD")
-    if not sp_user or not sp_pass:
-        return jsonify({"error": "Smartproxy credentials not found"}), 500
-
-    # Proxy config
-    proxy_url = "https://scraper-api.smartproxy.com/v2/scrape"
-    headers = {
-        "Authorization": f"Basic {os.environ.get('SMARTPROXY_AUTH')}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-    payload = {
-        "url": f"https://www.youtube.com/watch?v={video_id}"
-    }
-
     try:
-        # Proxy test request
-        proxy_response = requests.post(proxy_url, headers=headers, json=payload)
-        proxy_response.raise_for_status()
+        # Smartproxy config (from Render environment variables)
+        smartproxy_url = "https://scraper-api.smartproxy.com/v2/scrape"
+        smartproxy_auth = os.getenv("SMARTPROXY_AUTH")  # "Basic base64encodedstring"
+        target_url = f"https://www.youtube.com/watch?v={video_id}"
 
-        # Transcript extraction using local API (still works on backend)
+        # Smartproxy request payload
+        proxy_payload = {
+            "url": target_url
+        }
+
+        headers = {
+            "Accept": "application/json",
+            "Authorization": smartproxy_auth,
+            "Content-Type": "application/json"
+        }
+
+        proxy_response = requests.post(smartproxy_url, json=proxy_payload, headers=headers)
+
+        if proxy_response.status_code != 200:
+            return jsonify({
+                "video_id": video_id,
+                "error": f"Smartproxy failed with status {proxy_response.status_code}",
+                "response": proxy_response.text
+            }), 500
+
+        # Proceed to transcript retrieval using original YouTubeTranscriptApi
         transcript = YouTubeTranscriptApi.list_transcripts(video_id)
         en_transcript = transcript.find_transcript(['en'])
         segments = en_transcript.fetch()
@@ -64,11 +68,4 @@ def get_transcript():
             "language_available": False
         }), 400
 
-    except requests.RequestException as e:
-        return jsonify({
-            "video_id": video_id,
-            "error": f"Proxy request failed: {str(e)}"
-        }), 502
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+app.run(host="0.0.0.0", port=8000)

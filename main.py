@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
 import re
 
 app = Flask(__name__)
@@ -7,13 +7,15 @@ app = Flask(__name__)
 def get_video_id(url_or_id):
     match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", url_or_id)
     return match.group(1) if match else url_or_id
+
 @app.route("/")
 def index():
     return "YouTube Transcript API is live!"
-@app.route('/get-transcript', methods=['POST'])
+
+@app.route("/get-transcript", methods=["POST"])
 def get_transcript():
     data = request.json
-    url_or_id = data.get('video_url', '')
+    url_or_id = data.get("video_url", "")
     video_id = get_video_id(url_or_id)
 
     try:
@@ -29,7 +31,7 @@ def get_transcript():
             "language_available": True
         })
 
-      except (TranscriptsDisabled, NoTranscriptFound, VideoUnplayable) as e:
+    except (TranscriptsDisabled, NoTranscriptFound, VideoUnavailable) as e:
         return jsonify({
             "video_id": video_id,
             "error": str(e),
@@ -38,5 +40,5 @@ def get_transcript():
             "language_available": False
         }), 400
 
-
-app.run(host="0.0.0.0", port=8000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)

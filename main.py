@@ -1,7 +1,8 @@
-from flask import Flask, request, jsonify
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
 import re
 import os
+import requests
+from flask import Flask, request, jsonify
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
 
 app = Flask(__name__)
 
@@ -11,7 +12,7 @@ def get_video_id(url_or_id):
 
 @app.route("/")
 def index():
-    return "YouTube Transcript API is live with Smartproxy!"
+    return "YouTube Transcript API via Smartproxy is live!"
 
 @app.route("/get-transcript", methods=["POST"])
 def get_transcript():
@@ -19,21 +20,30 @@ def get_transcript():
     url_or_id = data.get("video_url", "")
     video_id = get_video_id(url_or_id)
 
+    # Smartproxy credentials from env
+    sp_user = os.getenv("SMARTPROXY_USERNAME")
+    sp_pass = os.getenv("SMARTPROXY_PASSWORD")
+    if not sp_user or not sp_pass:
+        return jsonify({"error": "Smartproxy credentials not found"}), 500
+
+    # Proxy config
+    proxy_url = "https://scraper-api.smartproxy.com/v2/scrape"
+    headers = {
+        "Authorization": f"Basic {os.environ.get('SMARTPROXY_AUTH')}",
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+    payload = {
+        "url": f"https://www.youtube.com/watch?v={video_id}"
+    }
+
     try:
-        # Load Smartproxy credentials from environment
-        proxy_user = os.environ.get("SMARTPROXY_USERNAME")
-        proxy_pass = os.environ.get("SMARTPROXY_PASSWORD")
-        proxy_host = os.environ.get("SMARTPROXY_HOST")
-        proxy_port = os.environ.get("SMARTPROXY_PORT")
+        # Proxy test request
+        proxy_response = requests.post(proxy_url, headers=headers, json=payload)
+        proxy_response.raise_for_status()
 
-        proxy_url = f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
-        proxies = {
-            "http": proxy_url,
-            "https": proxy_url
-        }
-
-        # Use proxy when calling the YouTube Transcript API
-        transcript = YouTubeTranscriptApi.list_transcripts(video_id, proxies=proxies)
+        # Transcript extraction using local API (still works on backend)
+        transcript = YouTubeTranscriptApi.list_transcripts(video_id)
         en_transcript = transcript.find_transcript(['en'])
         segments = en_transcript.fetch()
         flat_text = " ".join([seg['text'] for seg in segments])
@@ -54,12 +64,11 @@ def get_transcript():
             "language_available": False
         }), 400
 
-    except Exception as e:
+    except requests.RequestException as e:
         return jsonify({
             "video_id": video_id,
-            "error": f"Unhandled error: {str(e)}"
-        }), 500
+            "error": f"Proxy request failed: {str(e)}"
+        }), 502
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
-

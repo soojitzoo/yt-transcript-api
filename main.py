@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptNotFound, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
 import re
 
 app = Flask(__name__)
@@ -34,11 +34,19 @@ def get_transcript():
     except (TranscriptsDisabled, NoTranscriptFound, VideoUnavailable) as e:
         return jsonify({
             "video_id": video_id,
-            "error": str(e),
+            "error": f"Transcript error: {str(e)}",
             "transcript_segments": [],
             "full_transcript_text": "",
             "language_available": False
         }), 400
 
-if __name__ == "__main__":
+    except Exception as e:
+        # Catch any other unhandled error
+        return jsonify({
+            "video_id": video_id,
+            "error": f"Unhandled error: {str(e)}"
+        }), 500
+
+if __name__ == '__main__':
     app.run(host="0.0.0.0", port=8000)
+

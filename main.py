@@ -7,7 +7,9 @@ app = Flask(__name__)
 def get_video_id(url_or_id):
     match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", url_or_id)
     return match.group(1) if match else url_or_id
-
+@app.route("/")
+def index():
+    return "YouTube Transcript API is live!"
 @app.route('/get-transcript', methods=['POST'])
 def get_transcript():
     data = request.json
